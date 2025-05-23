@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.studentattendanceapp.ui.screens.welcome.WelcomeScreen
+import com.example.studentattendanceapp.ui.screens.auth.SignInScreen
 
 sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
@@ -34,7 +35,7 @@ fun AppNavGraph(
         }
         
         composable(Screen.SignIn.route) {
-            // SignInScreen(navController)
+            SignInScreen(navController)
         }
         
         composable(Screen.SignUp.route) {
