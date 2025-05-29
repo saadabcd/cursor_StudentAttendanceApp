@@ -6,6 +6,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.studentattendanceapp.ui.screens.welcome.WelcomeScreen
 import com.example.studentattendanceapp.ui.screens.auth.SignInScreen
+import com.example.studentattendanceapp.ui.screens.dashboard.ProfessorDashboard
+import com.example.studentattendanceapp.ui.screens.dashboard.StudentDashboard
+import com.example.studentattendanceapp.ui.screens.attendance.AttendanceSessionScreen
+import com.example.studentattendanceapp.ui.screens.attendance.StudentCheckinScreen
+import com.example.studentattendanceapp.ui.screens.profile.ProfileSettingsScreen
+import com.example.studentattendanceapp.ui.screens.attendance.AttendanceHistoryScreen
+import com.example.studentattendanceapp.ui.screens.timetable.TimetableEditorScreen
 
 sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
@@ -43,35 +50,35 @@ fun AppNavGraph(
         }
         
         composable(Screen.ProfessorDashboard.route) {
-            // ProfessorDashboard(navController)
+            ProfessorDashboard(navController)
         }
         
         composable(Screen.StudentDashboard.route) {
-            // StudentDashboard(navController)
+            StudentDashboard(navController)
         }
         
         composable(Screen.TimetableEditor.route) {
-            // TimetableEditor(navController)
+            TimetableEditorScreen(navController)
         }
         
         composable(Screen.AttendanceSession.route) {
-            // AttendanceSession(navController)
+            AttendanceSessionScreen(navController)
         }
         
         composable(Screen.AttendanceHistory.route) {
-            // AttendanceHistory(navController)
+            AttendanceHistoryScreen(navController)
         }
         
         composable(Screen.StudentCheckin.route) {
-            // StudentCheckin(navController)
+            StudentCheckinScreen(navController)
         }
         
         composable(Screen.StudentHistory.route) {
-            // StudentHistory(navController)
+            AttendanceHistoryScreen(navController)
         }
         
         composable(Screen.ProfileSettings.route) {
-            // ProfileSettings(navController)
+            ProfileSettingsScreen(navController)
         }
     }
 } 

@@ -1,6 +1,7 @@
 package com.example.studentattendanceapp
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -10,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.example.studentattendanceapp.navigation.AppNavGraph
 import com.example.studentattendanceapp.ui.theme.StudentAttendanceAppTheme
+
+private const val TAG = "MainActivity"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,6 +24,14 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+                    
+                    // Add navigation debugging
+                    LaunchedEffect(Unit) {
+                        navController.addOnDestinationChangedListener { _, destination, _ ->
+                            Log.d(TAG, "Navigation to: ${destination.route}")
+                        }
+                    }
+                    
                     AppNavGraph(navController = navController)
                 }
             }

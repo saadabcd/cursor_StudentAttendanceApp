@@ -158,6 +158,8 @@ If you encounter issues:
        - role: "STUDENT"
        - department: "Computer Science"
      ```
+================================I AM HERE ================================
+
 
 ## 10. Testing the App
 1. Run the app
@@ -170,6 +172,8 @@ If you encounter issues:
    - Email: student@test.com
    - Password: student123
    - Should navigate to Student Dashboard
+
+
 
 ## 11. Current Features
 - Welcome screen with navigation
