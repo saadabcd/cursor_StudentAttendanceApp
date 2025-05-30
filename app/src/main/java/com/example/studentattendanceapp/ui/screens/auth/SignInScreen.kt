@@ -67,7 +67,7 @@ fun SignInScreen(navController: NavController) {
         )
 
         if (error != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = error!!,
                 color = MaterialTheme.colorScheme.error,
@@ -91,7 +91,7 @@ fun SignInScreen(navController: NavController) {
                             Firebase.firestore.collection("users").document(userId)
                                 .get()
                                 .addOnSuccessListener { document ->
-                                    isLoading = false
+                        isLoading = false
                                     if (!document.exists()) {
                                         Log.e(TAG, "User document does not exist in Firestore")
                                         error = "User profile not found"
@@ -103,9 +103,9 @@ fun SignInScreen(navController: NavController) {
                                     when (role?.uppercase()) {
                                         "PROFESSOR" -> {
                                             Log.d(TAG, "Navigating to Professor Dashboard")
-                                            navController.navigate(Screen.ProfessorDashboard.route) {
-                                                popUpTo(Screen.Welcome.route) { inclusive = true }
-                                            }
+                            navController.navigate(Screen.ProfessorDashboard.route) {
+                                popUpTo(Screen.Welcome.route) { inclusive = true }
+                            }
                                         }
                                         "STUDENT" -> {
                                             Log.d(TAG, "Navigating to Student Dashboard")
