@@ -10,6 +10,7 @@ pipeline {
         APPCENTER_OWNER_NAME = 'saadabcd'  // Replace with your organization name from App Center
         APPCENTER_APP_NAME = 'abs'    // Replace with your app name from App Center
         GRADLE_OPTS = '-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs="-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError"'
+        EMAIL_RECIPIENT = 'saadabcd123789@gmail.com' // Replace with your email address
     }
     
     stages {
@@ -47,6 +48,32 @@ pipeline {
             post {
                 success {
                     archiveArtifacts '**/build/outputs/apk/debug/*.apk'
+                }
+            }
+        }
+
+        stage('Email APK') {
+            steps {
+                script {
+                    def apkPath = sh(
+                        script: 'find . -name "*.apk" -type f -path "*/build/outputs/apk/debug/*"',
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (apkPath) {
+                        emailext (
+                            subject: "Android App Build - ${currentBuild.currentResult}",
+                            body: """<p>Build Status: ${currentBuild.currentResult}</p>
+                                    <p>Build Number: ${currentBuild.number}</p>
+                                    <p>Check the build console output at: ${BUILD_URL}</p>""",
+                            to: "${EMAIL_RECIPIENT}",
+                            attachmentsPattern: "**/build/outputs/apk/debug/*.apk",
+                            mimeType: 'text/html'
+                        )
+                        echo "APK has been sent to ${EMAIL_RECIPIENT}"
+                    } else {
+                        error "No debug APK found to send via email"
+                    }
                 }
             }
         }
