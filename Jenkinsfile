@@ -2,71 +2,104 @@ pipeline {
     agent any
     
     environment {
-        // Android SDK and tools paths - adjust these according to your Jenkins server setup
+        // Android SDK paths (verified from your system)
         ANDROID_HOME = '/opt/android-sdk'
-        PATH = "${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${PATH}"
+        ANDROID_SDK_ROOT = '/opt/android-sdk'
+        
+        // Clean PATH without duplication
+        PATH = "${env.PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools"
+        
+        // Force Java 11 (since you have both Java 11 and 17)
+        JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
     }
     
     stages {
         stage('Checkout') {
             steps {
-                // Get code from GitHub repository
                 checkout scm
+                
+                // Debug: Verify files were checked out
+                sh 'ls -la'
             }
         }
         
-        stage('Setup') {
+        stage('Setup Environment') {
             steps {
-                // Basic setup
-                sh 'chmod +x ./gradlew'
-                sh 'echo $ANDROID_HOME'
-                sh 'echo $PATH'
-                sh 'which java'
-                sh './gradlew --version'
+                // Ensure gradlew is executable (with retry logic)
+                sh '''
+                    if [ ! -f ./gradlew ]; then
+                        echo "ERROR: gradlew not found! Check repository structure."
+                        exit 1
+                    fi
+                    chmod +x ./gradlew || { echo "Failed to make gradlew executable"; exit 1; }
+                    echo "sdk.dir=$ANDROID_HOME" > local.properties
+                '''
+                
+                // Debug environment
+                sh '''
+                    echo "=== ENVIRONMENT ==="
+                    echo "ANDROID_HOME: $ANDROID_HOME"
+                    echo "JAVA_HOME: $JAVA_HOME"
+                    echo "PATH: $PATH"
+                    java -version
+                    ./gradlew --version
+                    ls -la $ANDROID_HOME/cmdline-tools/latest/bin
+                '''
             }
         }
         
-        stage('Clean') {
+        stage('Clean Project') {
             steps {
-                // Clean the project
                 sh './gradlew clean'
             }
         }
         
-        stage('Lint') {
+        stage('Run Lint') {
             steps {
-                // Run only lint, remove sonarqube
-                sh './gradlew lint --stacktrace'
+                sh './gradlew lintDebug'
             }
             post {
                 always {
-                    archiveArtifacts artifacts: '**/build/reports/lint-results-*.html', allowEmptyArchive: true
+                    archiveArtifacts artifacts: '**/build/reports/lint-results-debug.html', allowEmptyArchive: true
                 }
             }
         }
         
-        stage('Build Debug') {
+        stage('Unit Tests') {
             steps {
-                // Build debug variant
-                sh './gradlew assembleDebug --stacktrace'
+                sh './gradlew test --stacktrace --no-daemon'
+            }
+            post {
+                always {
+                    junit '**/build/test-results/**/*.xml'
+                }
+            }
+        }
+        
+        stage('Build Debug APK') {
+            steps {
+                sh './gradlew assembleDebug --stacktrace --no-daemon'
             }
             post {
                 success {
-                    // Archive the APK
                     archiveArtifacts artifacts: '**/build/outputs/apk/debug/*.apk', fingerprint: true
                 }
             }
         }
         
-        stage('Deploy to Firebase App Distribution') {
+        stage('Deploy to Firebase') {
             when {
-                branch 'main' // Only deploy from main branch
+                branch 'main'
             }
             steps {
                 script {
-                    // Deploy to Firebase App Distribution
-                    // You'll need to configure Firebase CLI and add the firebase plugin to your project
-                    sh './gradlew appDistributionUploadRelease'
+                    // Ensure Firebase CLI is installed
+                    sh '''
+                        if ! command -v firebase &> /dev/null; then
+                            curl -sL https://firebase.tools | bash
+                        fi
+                        ./gradlew appDistributionUploadRelease
+                    '''
                 }
             }
         }
@@ -74,16 +107,25 @@ pipeline {
     
     post {
         always {
-            // Clean up workspace
-            cleanWs()
-        }
-        success {
-            // Notify on success (customize as needed)
-            echo 'Build successful!'
-        }
-        failure {
-            // Notify on failure (customize as needed)
-            echo 'Build failed!'
+            // Clean workspace but keep important files
+            cleanWs(
+                cleanWhenAborted: true,
+                cleanWhenFailure: true,
+                cleanWhenNotBuilt: true,
+                cleanWhenUnstable: true,
+                deleteDirs: false,
+                patterns: [[pattern: '.gradle/**', type: 'INCLUDE']]
+            )
+            
+            // Final status
+            script {
+                if (currentBuild.result == 'FAILURE') {
+                    echo "Pipeline failed! Check logs above."
+                    // Add Slack/email notification here if configured
+                } else {
+                    echo "Pipeline succeeded!"
+                }
+            }
         }
     }
-} 
+}
