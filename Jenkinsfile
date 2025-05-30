@@ -61,8 +61,8 @@ pipeline {
                     ).trim()
                     
                     if (apkPath) {
-                        // Create a new release upload
-                        def uploadResponse = sh(
+                        // Create upload URL
+                        def response = sh(
                             script: """
                                 curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
                                 -H "accept: application/json" \
@@ -73,20 +73,27 @@ pipeline {
                             returnStdout: true
                         ).trim()
                         
+                        // Parse the upload_url and upload_id from response
+                        def responseJson = readJSON text: response
+                        def uploadUrl = responseJson.upload_url
+                        def uploadId = responseJson.upload_id
+                        
                         // Upload the APK
                         sh """
                             curl -F "ipa=@${apkPath}" \
                             -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            "${uploadResponse.upload_url}"
+                            "${uploadUrl}"
                         """
                         
                         // Commit the release
                         sh """
-                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadResponse.upload_id}" \
+                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadId}" \
                             -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
                             -H "Content-Type: application/json" \
                             -d '{"status": "committed"}'
                         """
+                        
+                        echo "Successfully deployed to App Center"
                     } else {
                         error "No debug APK found"
                     }
