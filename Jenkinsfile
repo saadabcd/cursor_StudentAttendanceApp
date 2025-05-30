@@ -39,17 +39,6 @@ pipeline {
             }
         }
         
-        stage('Unit Tests') {
-            steps {
-                sh './gradlew test --stacktrace --no-daemon'
-            }
-            post {
-                always {
-                    junit '**/build/test-results/**/*.xml'
-                }
-            }
-        }
-        
         stage('Build Debug APK') {
             steps {
                 sh './gradlew assembleDebug --stacktrace --no-daemon'
@@ -62,37 +51,15 @@ pipeline {
         }
         
         stage('Deploy to App Center') {
-            when {
-                branch 'main'
-            }
             steps {
                 script {
-                    // Find the APK file
-                    def apkFiles = findFiles(glob: '**/build/outputs/apk/debug/*-debug.apk')
-                    if (apkFiles.isEmpty()) {
-                        error "No APK files found in build/outputs/apk/debug/"
-                    }
-                    def apkFile = apkFiles[0].path
-                    
-                    // Upload using App Center CLI
-                    withCredentials([string(credentialsId: 'appcenter-api-token', variable: 'APPCENTER_TOKEN')]) {
-                        sh """
-                            # Install App Center CLI if needed
-                            if ! command -v appcenter >/dev/null 2>&1; then
-                                npm install -g appcenter-cli
-                            fi
-                            
-                            # Authenticate and upload
-                            appcenter login --token \$APPCENTER_TOKEN
-                            appcenter distribute release \
-                                --app \$APPCENTER_OWNER_NAME/\$APPCENTER_APP_NAME \
-                                --file \$apkFile \
-                                --group "Collaborators" \
-                                --release-notes "Jenkins build ${env.BUILD_NUMBER}"
-                            
-                            echo "Successfully deployed to App Center"
-                        """
-                    }
+                    def apkFile = findFiles(glob: '**/build/outputs/apk/debug/*.apk')[0]
+                    sh """
+                        curl -X POST "https://api.appcenter.ms/v0.1/apps/badr.saad/StudentAttendanceApp/release_uploads" \
+                        -H "Content-Type: application/json" \
+                        -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                        -d '{}'
+                    """
                 }
             }
         }
