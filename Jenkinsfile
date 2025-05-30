@@ -5,7 +5,7 @@ pipeline {
         // Android SDK and tools paths - adjust these according to your Jenkins server setup
         ANDROID_HOME = '/opt/android-sdk'
         ANDROID_SDK_ROOT = '/opt/android-sdk'
-        PATH = "/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools:${env.PATH}"
+        PATH = "${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/tools:${PATH}"
     }
     
     stages {
@@ -18,15 +18,21 @@ pipeline {
         
         stage('Setup') {
             steps {
-                // Make gradlew executable
                 sh 'chmod +x ./gradlew'
-                
-                // Create local.properties
                 sh "echo 'sdk.dir=${ANDROID_HOME}' > local.properties"
                 
-                // Debug information
-                sh 'echo "ANDROID_HOME is: $ANDROID_HOME"'
-                sh 'java -version'
+                // Debug commands
+                sh '''
+                    echo "=== ENVIRONMENT CHECK ==="
+                    echo "ANDROID_HOME: $ANDROID_HOME"
+                    echo "PATH: $PATH"
+                    echo "Java version:"
+                    java -version
+                    echo "Android SDK tools:"
+                    ls -la $ANDROID_HOME/cmdline-tools/latest/bin
+                    echo "Gradle version:"
+                    ./gradlew --version
+                '''
             }
         }
         
