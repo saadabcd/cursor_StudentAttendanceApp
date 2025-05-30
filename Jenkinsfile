@@ -15,6 +15,19 @@ pipeline {
             }
         }
         
+        stage('Setup') {
+            steps {
+                // Make gradlew executable
+                sh 'chmod +x ./gradlew'
+                
+                // Print debug information
+                sh 'echo $ANDROID_HOME'
+                sh 'echo $PATH'
+                sh 'which java'
+                sh './gradlew --version'
+            }
+        }
+        
         stage('Clean') {
             steps {
                 // Clean the project
