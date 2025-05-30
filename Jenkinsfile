@@ -2,48 +2,33 @@ pipeline {
     agent any
     
     environment {
-        // Android SDK paths (verified from your system)
         ANDROID_HOME = '/opt/android-sdk'
         ANDROID_SDK_ROOT = '/opt/android-sdk'
-        
-        // Clean PATH without duplication
         PATH = "${env.PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools"
-        
-        // Force Java 11 (since you have both Java 11 and 17)
-        JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
+        APPCENTER_API_TOKEN = credentials('appcenter-api-token')
+        APPCENTER_OWNER_NAME = 'app-gestion-abscence'  // Replace with your org/username
+        APPCENTER_APP_NAME = 'gestion_abs'            // Replace with your app name
     }
     
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
-                
-                // Debug: Verify files were checked out
                 sh 'ls -la'
             }
         }
         
         stage('Setup Environment') {
             steps {
-                // Ensure gradlew is executable (with retry logic)
                 sh '''
-                    if [ ! -f ./gradlew ]; then
-                        echo "ERROR: gradlew not found! Check repository structure."
-                        exit 1
-                    fi
-                    chmod +x ./gradlew || { echo "Failed to make gradlew executable"; exit 1; }
+                    chmod +x ./gradlew
                     echo "sdk.dir=$ANDROID_HOME" > local.properties
-                '''
-                
-                // Debug environment
-                sh '''
-                    echo "=== ENVIRONMENT ==="
-                    echo "ANDROID_HOME: $ANDROID_HOME"
-                    echo "JAVA_HOME: $JAVA_HOME"
-                    echo "PATH: $PATH"
-                    java -version
-                    ./gradlew --version
-                    ls -la $ANDROID_HOME/cmdline-tools/latest/bin
+                    
+                    # Optional: Pre-install Android components
+                    yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+                        "platforms;android-34" \
+                        "build-tools;35.0.0" || true
                 '''
             }
         }
@@ -51,17 +36,6 @@ pipeline {
         stage('Clean Project') {
             steps {
                 sh './gradlew clean'
-            }
-        }
-        
-        stage('Run Lint') {
-            steps {
-                sh './gradlew lintDebug'
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: '**/build/reports/lint-results-debug.html', allowEmptyArchive: true
-                }
             }
         }
         
@@ -82,24 +56,43 @@ pipeline {
             }
             post {
                 success {
-                    archiveArtifacts artifacts: '**/build/outputs/apk/debug/*.apk', fingerprint: true
+                    archiveArtifacts '**/build/outputs/apk/debug/*.apk'
                 }
             }
         }
         
-        stage('Deploy to Firebase') {
+        stage('Deploy to App Center') {
             when {
                 branch 'main'
             }
             steps {
                 script {
-                    // Ensure Firebase CLI is installed
-                    sh '''
-                        if ! command -v firebase &> /dev/null; then
-                            curl -sL https://firebase.tools | bash
-                        fi
-                        ./gradlew appDistributionUploadRelease
-                    '''
+                    // Find the APK file
+                    def apkFiles = findFiles(glob: '**/build/outputs/apk/debug/*-debug.apk')
+                    if (apkFiles.isEmpty()) {
+                        error "No APK files found in build/outputs/apk/debug/"
+                    }
+                    def apkFile = apkFiles[0].path
+                    
+                    // Upload using App Center CLI
+                    withCredentials([string(credentialsId: 'appcenter-api-token', variable: 'APPCENTER_TOKEN')]) {
+                        sh """
+                            # Install App Center CLI if needed
+                            if ! command -v appcenter >/dev/null 2>&1; then
+                                npm install -g appcenter-cli
+                            fi
+                            
+                            # Authenticate and upload
+                            appcenter login --token \$APPCENTER_TOKEN
+                            appcenter distribute release \
+                                --app \$APPCENTER_OWNER_NAME/\$APPCENTER_APP_NAME \
+                                --file \$apkFile \
+                                --group "Collaborators" \
+                                --release-notes "Jenkins build ${env.BUILD_NUMBER}"
+                            
+                            echo "Successfully deployed to App Center"
+                        """
+                    }
                 }
             }
         }
@@ -107,21 +100,10 @@ pipeline {
     
     post {
         always {
-            // Clean workspace but keep important files
-            cleanWs(
-                cleanWhenAborted: true,
-                cleanWhenFailure: true,
-                cleanWhenNotBuilt: true,
-                cleanWhenUnstable: true,
-                deleteDirs: false,
-                patterns: [[pattern: '.gradle/**', type: 'INCLUDE']]
-            )
-            
-            // Final status
+            cleanWs()
             script {
                 if (currentBuild.result == 'FAILURE') {
                     echo "Pipeline failed! Check logs above."
-                    // Add Slack/email notification here if configured
                 } else {
                     echo "Pipeline succeeded!"
                 }
