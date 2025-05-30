@@ -27,8 +27,7 @@ fun StudentCheckinScreen() {
     ) {
         Text(
             text = "Check-in to Class",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.semantics { contentDescription = "title" }
+            style = MaterialTheme.typography.headlineMedium
         )
 
         Spacer(modifier = Modifier.height(24.dp))
