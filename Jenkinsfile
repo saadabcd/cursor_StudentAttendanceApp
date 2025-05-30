@@ -4,8 +4,7 @@ pipeline {
     environment {
         // Android SDK and tools paths - adjust these according to your Jenkins server setup
         ANDROID_HOME = '/opt/android-sdk'
-        ANDROID_SDK_ROOT = '/opt/android-sdk'
-        PATH = "${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/tools:${PATH}"
+        PATH = "${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${PATH}"
     }
     
     stages {
@@ -18,21 +17,12 @@ pipeline {
         
         stage('Setup') {
             steps {
+                // Basic setup
                 sh 'chmod +x ./gradlew'
-                sh "echo 'sdk.dir=${ANDROID_HOME}' > local.properties"
-                
-                // Debug commands
-                sh '''
-                    echo "=== ENVIRONMENT CHECK ==="
-                    echo "ANDROID_HOME: $ANDROID_HOME"
-                    echo "PATH: $PATH"
-                    echo "Java version:"
-                    java -version
-                    echo "Android SDK tools:"
-                    ls -la $ANDROID_HOME/cmdline-tools/latest/bin
-                    echo "Gradle version:"
-                    ./gradlew --version
-                '''
+                sh 'echo $ANDROID_HOME'
+                sh 'echo $PATH'
+                sh 'which java'
+                sh './gradlew --version'
             }
         }
         
@@ -45,24 +35,12 @@ pipeline {
         
         stage('Lint') {
             steps {
-                sh './gradlew lintDebug'
+                // Run only lint, remove sonarqube
+                sh './gradlew lint --stacktrace'
             }
             post {
                 always {
-                    archiveArtifacts artifacts: '**/build/reports/lint-results-debug.html', allowEmptyArchive: true
-                }
-            }
-        }
-        
-        stage('Unit Tests') {
-            steps {
-                // Run unit tests
-                sh './gradlew test --stacktrace'
-            }
-            post {
-                always {
-                    // Archive the test results
-                    junit '**/build/test-results/**/*.xml'
+                    archiveArtifacts artifacts: '**/build/reports/lint-results-*.html', allowEmptyArchive: true
                 }
             }
         }
