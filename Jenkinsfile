@@ -25,11 +25,8 @@ pipeline {
                 sh "echo 'sdk.dir=${ANDROID_HOME}' > local.properties"
                 
                 // Debug information
-                sh '''
-                    echo "ANDROID_HOME=$ANDROID_HOME"
-                    which java
-                    java -version
-                '''
+                sh 'echo "ANDROID_HOME is: $ANDROID_HOME"'
+                sh 'java -version'
             }
         }
         
