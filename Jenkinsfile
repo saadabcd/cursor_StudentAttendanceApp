@@ -7,8 +7,8 @@ pipeline {
         PATH = "${env.PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools"
         JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
         APPCENTER_API_TOKEN = credentials('appcenter-api-token')
-        APPCENTER_OWNER_NAME = 'app-gestion-abscence'  // Replace with your org/username
-        APPCENTER_APP_NAME = 'gestion_abs'            // Replace with your app name
+        APPCENTER_OWNER_NAME = 'saadabcd'  // Replace with your organization name from App Center
+        APPCENTER_APP_NAME = 'abs'    // Replace with your app name from App Center
         GRADLE_OPTS = '-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs="-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError"'
     }
     
@@ -54,75 +54,60 @@ pipeline {
         stage('Deploy to App Center') {
             steps {
                 script {
-                    // Find the APK file
+                    // First verify the app exists
+                    def appCheckStatus = sh(
+                        script: """
+                            curl -s -o /dev/null -w "%{http_code}" \
+                            "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}" \
+                            -H "X-API-Token: ${APPCENTER_API_TOKEN}"
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    if (appCheckStatus != "200") {
+                        error """
+                            App not found in App Center! Please verify:
+                            1. Organization name: ${APPCENTER_OWNER_NAME}
+                            2. App name: ${APPCENTER_APP_NAME}
+                            3. API token has correct permissions
+                            
+                            Create the app in App Center first, then update the Jenkinsfile with correct details.
+                        """
+                    }
+
                     def apkPath = sh(
                         script: 'find . -name "*.apk" -type f -path "*/build/outputs/apk/debug/*"',
                         returnStdout: true
                     ).trim()
                     
-                    if (apkPath) {
-                        // Step 1: Create upload URL
-                        def uploadResponse = sh(
-                            script: """
-                                curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
-                                -H "accept: application/json" \
-                                -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                                -H "Content-Type: application/json" \
-                                -d '{}'
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        // Extract upload_url using grep and sed
-                        def uploadUrl = sh(
-                            script: """echo '${uploadResponse}' | grep -o '"upload_url":"[^"]*' | sed 's/"upload_url":"//'""",
-                            returnStdout: true
-                        ).trim()
-                        
-                        def uploadId = sh(
-                            script: """echo '${uploadResponse}' | grep -o '"upload_id":"[^"]*' | sed 's/"upload_id":"//'""",
-                            returnStdout: true
-                        ).trim()
-                        
-                        // Step 2: Upload the APK
-                        sh """
-                            curl -F "ipa=@${apkPath}" "${uploadUrl}"
-                        """
-                        
-                        // Step 3: Commit the release
-                        sh """
-                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadId}" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -H "Content-Type: application/json" \
-                            -d '{"status":"committed"}'
-                        """
-                        
-                        // Step 4: Get the release ID
-                        def releaseId = sh(
-                            script: """
-                                curl -X GET "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/releases/latest" \
-                                -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                                -H "Content-Type: application/json" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        // Step 5: Distribute the release
-                        sh """
-                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/releases/${releaseId}" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -H "Content-Type: application/json" \
-                            -d '{
-                                "enabled":true,
-                                "destinations":[{"name":"Collaborators"}],
-                                "release_notes":"New build from Jenkins Pipeline"
-                            }'
-                        """
-                        
-                        echo "Successfully deployed to App Center. Check https://appcenter.ms/users/${APPCENTER_OWNER_NAME}/apps/${APPCENTER_APP_NAME}"
-                    } else {
+                    if (!apkPath) {
                         error "No debug APK found"
+                        return
                     }
+
+                    // Upload using the App Center CLI (more reliable than raw API calls)
+                    def appCenterCommand = """
+                        curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/releases" \
+                        -H "accept: application/json" \
+                        -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                        -H "Content-Type: multipart/form-data" \
+                        -F "file=@${apkPath}" \
+                        -F "build_version=1.0.0" \
+                        -F "build_number=1" \
+                        -F "release_notes=Build from Jenkins Pipeline" \
+                        -F "distribution_group_name=Collaborators"
+                    """
+                    
+                    def response = sh(script: appCenterCommand, returnStdout: true).trim()
+                    
+                    echo """
+                        App Center deployment completed!
+                        
+                        You can find your app at:
+                        https://appcenter.ms/orgs/${APPCENTER_OWNER_NAME}/apps/${APPCENTER_APP_NAME}
+                        
+                        Response: ${response}
+                    """
                 }
             }
         }
