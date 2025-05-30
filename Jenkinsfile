@@ -31,6 +31,9 @@ pipeline {
                     yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
                         "platforms;android-34" \
                         "build-tools;35.0.0" || true
+                        
+                    # Install App Center CLI
+                    npm install -g appcenter-cli || true
                 '''
             }
         }
@@ -41,13 +44,19 @@ pipeline {
             }
         }
         
-        stage('Build Debug APK') {
+        stage('Build Debug APK and Release Bundle') {
             steps {
-                sh './gradlew assembleDebug --parallel --stacktrace'
+                sh '''
+                    ./gradlew assembleDebug --parallel --stacktrace
+                    ./gradlew bundleRelease --parallel --stacktrace
+                '''
             }
             post {
                 success {
-                    archiveArtifacts '**/build/outputs/apk/debug/*.apk'
+                    archiveArtifacts artifacts: '''
+                        **/build/outputs/apk/debug/*.apk,
+                        **/build/outputs/bundle/release/*.aab
+                    ''', allowEmptyArchive: true
                 }
             }
         }
@@ -75,6 +84,18 @@ pipeline {
                         error "No debug APK found to send via email"
                     }
                 }
+            }
+        }
+
+        stage('App Center CLI Distribution') {
+            steps {
+                sh '''
+                    appcenter distribute release \
+                    --app saadsbcd/abs \
+                    --group "Collaborators" \
+                    --file ./app/build/outputs/bundle/release/app-release.aab \
+                    --token b7ab1047c82ebb826cb94d568bd8b72e99115cf4
+                '''
             }
         }
         
