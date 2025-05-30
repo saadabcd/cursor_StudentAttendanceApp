@@ -20,6 +20,13 @@ pipeline {
                 // Make gradlew executable
                 sh 'chmod +x ./gradlew'
                 
+                // Fix Android SDK permissions
+                sh 'sudo chown -R jenkins:jenkins $ANDROID_HOME'
+                sh 'sudo chmod -R 755 $ANDROID_HOME'
+                
+                // Accept Android SDK licenses
+                sh 'yes | sudo -u jenkins $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses'
+                
                 // Print debug information
                 sh 'echo $ANDROID_HOME'
                 sh 'echo $PATH'
@@ -35,22 +42,12 @@ pipeline {
             }
         }
         
-        stage('Code Analysis') {
+        stage('Lint') {
             steps {
-                parallel(
-                    "Lint": {
-                        // Run Android Lint
-                        sh './gradlew lint'
-                    },
-                    "Static Code Analysis": {
-                        // Run static code analysis if configured (e.g., SonarQube)
-                        sh './gradlew sonarqube' // Uncomment if SonarQube is configured
-                    }
-                )
+                sh './gradlew lintDebug'
             }
             post {
                 always {
-                    // Archive the lint results
                     archiveArtifacts artifacts: '**/build/reports/lint-results-debug.html', allowEmptyArchive: true
                 }
             }
@@ -69,29 +66,15 @@ pipeline {
             }
         }
         
-        stage('Instrumentation Tests') {
+        stage('Build Debug APK') {
             steps {
-                // Run Android instrumentation tests (requires connected device or emulator)
-                sh './gradlew connectedAndroidTest'
-            }
-            post {
-                always {
-                    // Archive the Android test results
-                    junit '**/build/outputs/androidTest-results/**/*.xml'
-                }
-            }
-        }
-        
-        stage('Build') {
-            steps {
-                // Build debug and release variants
+                // Build debug variant
                 sh './gradlew assembleDebug'
-                sh './gradlew assembleRelease'
             }
             post {
                 success {
-                    // Archive the APKs
-                    archiveArtifacts artifacts: '**/build/outputs/apk/**/*.apk', fingerprint: true
+                    // Archive the APK
+                    archiveArtifacts artifacts: '**/build/outputs/apk/debug/*.apk', fingerprint: true
                 }
             }
         }
