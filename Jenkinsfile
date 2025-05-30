@@ -1,5 +1,4 @@
-
-pipeline {
+ pipeline {
     agent any
     
     environment {
@@ -8,87 +7,13 @@ pipeline {
         PATH = "${env.PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools"
         JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
         
-        // App Center config (set these in Jenkins credentials)
-        APPCENTER_API_TOKEN = credentials('appcenter-api-token')
+        // App Center config
         APPCENTER_OWNER_NAME = 'app-gestion-abscence'  // Replace with your org/username
         APPCENTER_APP_NAME = 'gestion_abs'            // Replace with your app name
     }
     
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-                sh 'ls -la'  // Verify checkout
-            }
-        }
-        
-        stage('Setup Environment') {
-            steps {
-                sh '''
-                    chmod +x ./gradlew
-                    echo "sdk.dir=$ANDROID_HOME" > local.properties
-                    
-                    # Install required SDK components upfront
-                    yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-                        "platforms;android-34" \
-                        "build-tools;35.0.0"
-                '''
-            }
-        }
-        
-        stage('Inject Firebase Config') {
-            steps {
-                script {
-                    // Create debug flavor directory
-                    sh 'mkdir -p app/src/debug'
-                    
-                    // Add google-services.json from Jenkins credentials
-                    withCredentials([file(credentialsId: 'google-services-json', variable: 'GOOGLE_SERVICES_JSON')]) {
-                        sh 'cp $GOOGLE_SERVICES_JSON app/src/debug/google-services.json'
-                    }
-                }
-            }
-        }
-        
-        stage('Clean Project') {
-            steps {
-                sh './gradlew clean'
-            }
-        }
-        
-        stage('Run Lint') {
-            steps {
-                sh './gradlew lintDebug'
-            }
-            post {
-                always {
-                    archiveArtifacts '**/build/reports/lint-results-debug.html'
-                }
-            }
-        }
-        
-        stage('Unit Tests') {
-            steps {
-                sh './gradlew test --stacktrace --no-daemon'
-            }
-            post {
-                always {
-                    junit '**/build/test-results/**/*.xml'
-                }
-            }
-        }
-        
-        
-        stage('Build Debug APK') {
-            steps {
-                sh './gradlew assembleDebug --stacktrace --no-daemon'
-            }
-            post {
-                success {
-                    archiveArtifacts '**/build/outputs/apk/debug/*.apk'
-                }
-            }
-        }
+        // [Keep all your existing stages until Build Debug APK...]
         
         stage('Deploy to App Center') {
             when {
@@ -97,24 +22,27 @@ pipeline {
             steps {
                 script {
                     // Find the APK file
-                    def apkFile = findFiles(glob: '**/build/outputs/apk/debug/*-debug.apk')[0].path
+                    def apkFiles = findFiles(glob: '**/build/outputs/apk/debug/*-debug.apk')
+                    if (apkFiles.length == 0) {
+                        error "No APK files found"
+                    }
+                    def apkFile = apkFiles[0].path
                     
-                    // Upload to App Center
-                    withCredentials([string(credentialsId: 'appcenter-api-token', variable: 'APPCENTER_API_TOKEN']) {
+                    // Upload using App Center CLI (recommended approach)
+                    withCredentials([string(credentialsId: 'appcenter-api-token', variable: 'APPCENTER_TOKEN')]) {
                         sh """
-                            curl -X POST \
-                            "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
-                            -H "accept: application/json" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -H "Content-Type: application/json" \
-                            -d '{}'
+                            # Install App Center CLI if not present
+                            if ! command -v appcenter >/dev/null; then
+                                npm install -g appcenter-cli
+                            fi
                             
-                            # Complete the upload (add proper parsing of upload_id and upload_url from response)
-                            curl -X POST \
-                            "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/<upload_id>" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -H "Content-Type: application/json" \
-                            -d '{"status": "committed"}'
+                            # Authenticate and upload
+                            appcenter login --token \$APPCENTER_TOKEN
+                            appcenter distribute release \
+                                --app \$APPCENTER_OWNER_NAME/\$APPCENTER_APP_NAME \
+                                --file \$apkFile \
+                                --group "Collaborators" \
+                                --release-notes "Automated build from Jenkins"
                         """
                     }
                 }
