@@ -42,7 +42,7 @@ pipeline {
         
         stage('Build Debug APK') {
             steps {
-                sh './gradlew assembleDebug --parallel --stacktrace --warning-mode all'
+                sh './gradlew assembleDebug --parallel --stacktrace'
             }
             post {
                 success {
@@ -60,38 +60,36 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     
-                    if (!apkPath) {
+                    if (apkPath) {
+                        // Create a new release upload
+                        def uploadResponse = sh(
+                            script: """
+                                curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
+                                -H "accept: application/json" \
+                                -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                                -H "Content-Type: application/json" \
+                                -d '{}'
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Upload the APK
+                        sh """
+                            curl -F "ipa=@${apkPath}" \
+                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                            "${uploadResponse.upload_url}"
+                        """
+                        
+                        // Commit the release
+                        sh """
+                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadResponse.upload_id}" \
+                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                            -H "Content-Type: application/json" \
+                            -d '{"status": "committed"}'
+                        """
+                    } else {
                         error "No debug APK found"
                     }
-                    
-                    // Start the release upload
-                    def uploadResponse = sh(
-                        script: """
-                            curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
-                            -H "Content-Type: application/json" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -d '{}'
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    // Parse the upload URL and ID from response
-                    def uploadInfo = readJSON text: uploadResponse
-                    def uploadUrl = uploadInfo.upload_url
-                    def uploadId = uploadInfo.upload_id
-                    
-                    // Upload the APK
-                    sh """
-                        curl -F "ipa=@${apkPath}" ${uploadUrl}
-                    """
-                    
-                    // Commit the release
-                    sh """
-                        curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadId}" \
-                        -H "Content-Type: application/json" \
-                        -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                        -d '{"status": "committed"}'
-                    """
                 }
             }
         }
