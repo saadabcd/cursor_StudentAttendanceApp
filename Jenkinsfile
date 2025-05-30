@@ -5,7 +5,7 @@ pipeline {
         // Android SDK and tools paths - adjust these according to your Jenkins server setup
         ANDROID_HOME = '/opt/android-sdk'
         ANDROID_SDK_ROOT = '/opt/android-sdk'
-        PATH = "${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/tools:${PATH}"
+        PATH = "/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools:${env.PATH}"
     }
     
     stages {
@@ -21,17 +21,14 @@ pipeline {
                 // Make gradlew executable
                 sh 'chmod +x ./gradlew'
                 
-                // Create a local.properties file with SDK location
-                sh 'echo "sdk.dir=${ANDROID_HOME}" > local.properties'
+                // Create local.properties
+                sh "echo 'sdk.dir=${ANDROID_HOME}' > local.properties"
                 
-                // Print debug information
+                // Debug information
                 sh '''
-                    echo "ANDROID_HOME: $ANDROID_HOME"
-                    echo "PATH: $PATH"
-                    echo "Java version:"
+                    echo "ANDROID_HOME=$ANDROID_HOME"
+                    which java
                     java -version
-                    echo "Gradle version:"
-                    ./gradlew --version
                 '''
             }
         }
@@ -57,7 +54,7 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 // Run unit tests
-                sh './gradlew test'
+                sh './gradlew test --stacktrace'
             }
             post {
                 always {
@@ -67,10 +64,10 @@ pipeline {
             }
         }
         
-        stage('Build Debug APK') {
+        stage('Build Debug') {
             steps {
                 // Build debug variant
-                sh './gradlew assembleDebug'
+                sh './gradlew assembleDebug --stacktrace'
             }
             post {
                 success {
@@ -101,11 +98,11 @@ pipeline {
         }
         success {
             // Notify on success (customize as needed)
-            echo 'Build and tests passed!'
+            echo 'Build successful!'
         }
         failure {
             // Notify on failure (customize as needed)
-            echo 'Build or tests failed!'
+            echo 'Build failed!'
         }
     }
 } 
