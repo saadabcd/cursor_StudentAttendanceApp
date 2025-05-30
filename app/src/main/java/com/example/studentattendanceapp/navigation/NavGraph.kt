@@ -62,7 +62,7 @@ fun AppNavGraph(
         }
         
         composable(Screen.AttendanceSession.route) {
-            AttendanceSessionScreen(navController)
+            AttendanceSessionScreen()
         }
         
         composable(Screen.AttendanceHistory.route) {
@@ -70,7 +70,7 @@ fun AppNavGraph(
         }
         
         composable(Screen.StudentCheckin.route) {
-            StudentCheckinScreen(navController)
+            StudentCheckinScreen()
         }
         
         composable(Screen.StudentHistory.route) {

@@ -16,9 +16,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun AttendanceSessionScreen(navController: NavController) {
+fun AttendanceSessionScreen() {
     var courseName by remember { mutableStateOf("") }
-    var sessionCode by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var activeSessions by remember { mutableStateOf<List<AttendanceSession>>(emptyList()) }

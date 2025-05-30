@@ -13,7 +13,7 @@ import com.google.firebase.ktx.Firebase
 import java.util.*
 
 @Composable
-fun StudentCheckinScreen(navController: NavController) {
+fun StudentCheckinScreen() {
     var sessionCode by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -27,7 +27,8 @@ fun StudentCheckinScreen(navController: NavController) {
     ) {
         Text(
             text = "Check-in to Class",
-            style = MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.semantics { contentDescription = "title" }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
