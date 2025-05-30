@@ -61,39 +61,20 @@ pipeline {
                     ).trim()
                     
                     if (apkPath) {
-                        // Create upload URL
-                        def response = sh(
-                            script: """
-                                curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
-                                -H "accept: application/json" \
-                                -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                                -H "Content-Type: application/json" \
-                                -d '{}'
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        // Parse the upload_url and upload_id from response
-                        def responseJson = readJSON text: response
-                        def uploadUrl = responseJson.upload_url
-                        def uploadId = responseJson.upload_id
-                        
-                        // Upload the APK
+                        // Direct upload to App Center using the upload API
                         sh """
-                            curl -F "ipa=@${apkPath}" \
+                            curl -X POST "https://file.appcenter.ms/upload" \
+                            -H "accept: application/json" \
                             -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            "${uploadUrl}"
+                            -H "Content-Type: multipart/form-data" \
+                            -F "ipa=@${apkPath}" \
+                            -F "distribution_group=Collaborators" \
+                            -F "app_name=${APPCENTER_APP_NAME}" \
+                            -F "owner_name=${APPCENTER_OWNER_NAME}" \
+                            -F "file=@${apkPath}"
                         """
                         
-                        // Commit the release
-                        sh """
-                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadId}" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -H "Content-Type: application/json" \
-                            -d '{"status": "committed"}'
-                        """
-                        
-                        echo "Successfully deployed to App Center"
+                        echo "Successfully uploaded APK to App Center"
                     } else {
                         error "No debug APK found"
                     }
