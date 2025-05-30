@@ -1,4 +1,5 @@
- pipeline {
+
+pipeline {
     agent any
     
     environment {
@@ -7,13 +8,87 @@
         PATH = "${env.PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools"
         JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
         
-        // App Center config
+        // App Center config (set these in Jenkins credentials)
+        APPCENTER_API_TOKEN = credentials('appcenter-api-token')
         APPCENTER_OWNER_NAME = 'app-gestion-abscence'  // Replace with your org/username
         APPCENTER_APP_NAME = 'gestion_abs'            // Replace with your app name
     }
     
     stages {
-        // [Keep all your existing stages until Build Debug APK...]
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'ls -la'  // Verify checkout
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                sh '''
+                    chmod +x ./gradlew
+                    echo "sdk.dir=$ANDROID_HOME" > local.properties
+                    
+                    # Install required SDK components upfront
+                    yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+                        "platforms;android-34" \
+                        "build-tools;35.0.0"
+                '''
+            }
+        }
+        
+        stage('Inject Firebase Config') {
+            steps {
+                script {
+                    // Create debug flavor directory
+                    sh 'mkdir -p app/src/debug'
+                    
+                    // Add google-services.json from Jenkins credentials
+                    withCredentials([file(credentialsId: 'google-services-json', variable: 'GOOGLE_SERVICES_JSON')]) {
+                        sh 'cp $GOOGLE_SERVICES_JSON app/src/debug/google-services.json'
+                    }
+                }
+            }
+        }
+        
+        stage('Clean Project') {
+            steps {
+                sh './gradlew clean'
+            }
+        }
+        
+        stage('Run Lint') {
+            steps {
+                sh './gradlew lintDebug'
+            }
+            post {
+                always {
+                    archiveArtifacts '**/build/reports/lint-results-debug.html'
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                sh './gradlew test --stacktrace --no-daemon'
+            }
+            post {
+                always {
+                    junit '**/build/test-results/**/*.xml'
+                }
+            }
+        }
+        
+        
+        stage('Build Debug APK') {
+            steps {
+                sh './gradlew assembleDebug --stacktrace --no-daemon'
+            }
+            post {
+                success {
+                    archiveArtifacts '**/build/outputs/apk/debug/*.apk'
+                }
+            }
+        }
         
         stage('Deploy to App Center') {
             when {
