@@ -91,7 +91,7 @@ fun SignInScreen(navController: NavController) {
                             Firebase.firestore.collection("users").document(userId)
                                 .get()
                                 .addOnSuccessListener { document ->
-                                    isLoading = false
+                        isLoading = false
                                     if (!document.exists()) {
                                         Log.e(TAG, "User document does not exist in Firestore")
                                         error = "User profile not found"

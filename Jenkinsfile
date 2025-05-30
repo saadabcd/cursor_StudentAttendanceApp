@@ -61,20 +61,65 @@ pipeline {
                     ).trim()
                     
                     if (apkPath) {
-                        // Direct upload to App Center using the upload API
+                        // Step 1: Create upload URL
+                        def uploadResponse = sh(
+                            script: """
+                                curl -X POST "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads" \
+                                -H "accept: application/json" \
+                                -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                                -H "Content-Type: application/json" \
+                                -d '{}'
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Extract upload_url using grep and sed
+                        def uploadUrl = sh(
+                            script: """echo '${uploadResponse}' | grep -o '"upload_url":"[^"]*' | sed 's/"upload_url":"//'""",
+                            returnStdout: true
+                        ).trim()
+                        
+                        def uploadId = sh(
+                            script: """echo '${uploadResponse}' | grep -o '"upload_id":"[^"]*' | sed 's/"upload_id":"//'""",
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Step 2: Upload the APK
                         sh """
-                            curl -X POST "https://file.appcenter.ms/upload" \
-                            -H "accept: application/json" \
-                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
-                            -H "Content-Type: multipart/form-data" \
-                            -F "ipa=@${apkPath}" \
-                            -F "distribution_group=Collaborators" \
-                            -F "app_name=${APPCENTER_APP_NAME}" \
-                            -F "owner_name=${APPCENTER_OWNER_NAME}" \
-                            -F "file=@${apkPath}"
+                            curl -F "ipa=@${apkPath}" "${uploadUrl}"
                         """
                         
-                        echo "Successfully uploaded APK to App Center"
+                        // Step 3: Commit the release
+                        sh """
+                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/release_uploads/${uploadId}" \
+                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                            -H "Content-Type: application/json" \
+                            -d '{"status":"committed"}'
+                        """
+                        
+                        // Step 4: Get the release ID
+                        def releaseId = sh(
+                            script: """
+                                curl -X GET "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/releases/latest" \
+                                -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                                -H "Content-Type: application/json" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Step 5: Distribute the release
+                        sh """
+                            curl -X PATCH "https://api.appcenter.ms/v0.1/apps/${APPCENTER_OWNER_NAME}/${APPCENTER_APP_NAME}/releases/${releaseId}" \
+                            -H "X-API-Token: ${APPCENTER_API_TOKEN}" \
+                            -H "Content-Type: application/json" \
+                            -d '{
+                                "enabled":true,
+                                "destinations":[{"name":"Collaborators"}],
+                                "release_notes":"New build from Jenkins Pipeline"
+                            }'
+                        """
+                        
+                        echo "Successfully deployed to App Center. Check https://appcenter.ms/users/${APPCENTER_OWNER_NAME}/apps/${APPCENTER_APP_NAME}"
                     } else {
                         error "No debug APK found"
                     }
