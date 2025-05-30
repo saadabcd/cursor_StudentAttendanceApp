@@ -9,6 +9,7 @@ pipeline {
         APPCENTER_API_TOKEN = credentials('appcenter-api-token')
         APPCENTER_OWNER_NAME = 'app-gestion-abscence'  // Replace with your org/username
         APPCENTER_APP_NAME = 'gestion_abs'            // Replace with your app name
+        GRADLE_OPTS = '-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs="-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError"'
     }
     
     stages {
@@ -35,13 +36,13 @@ pipeline {
         
         stage('Clean Project') {
             steps {
-                sh './gradlew clean'
+                sh './gradlew clean --parallel'
             }
         }
         
         stage('Build Debug APK') {
             steps {
-                sh './gradlew assembleDebug --stacktrace --no-daemon'
+                sh './gradlew assembleDebug --parallel --stacktrace'
             }
             post {
                 success {
